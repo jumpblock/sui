@@ -343,6 +343,7 @@ impl RpcExampleProvider {
                     version: SequenceNumber::from_u64(1),
                     digest: ObjectDigest::new(self.rng.gen()),
                     type_: Some(ObjectType::Struct(MoveObjectType::gas_coin())),
+                    layout_:None,
                     bcs: None,
                     display: None,
                 })
@@ -387,6 +388,7 @@ impl RpcExampleProvider {
             version: SequenceNumber::from_u64(4),
             digest: ObjectDigest::new(self.rng.gen()),
             type_: Some(ObjectType::Struct(MoveObjectType::gas_coin())),
+            layout_:None,
             bcs: None,
             display: None,
         });
@@ -484,6 +486,7 @@ impl RpcExampleProvider {
                 version: Default::default(),
                 digest: ObjectDigest::new(self.rng.gen()),
                 type_: Some(ObjectType::Struct(MoveObjectType::gas_coin())),
+                layout_:None,
                 owner: Some(Owner::AddressOwner(owner)),
                 previous_transaction: Some(TransactionDigest::new(self.rng.gen())),
                 storage_rebate: None,
@@ -1227,6 +1230,7 @@ impl RpcExampleProvider {
             type_: Some(ObjectType::Struct(MoveObjectType::from(
                 parse_sui_struct_tag("0x9::test::TestField").unwrap(),
             ))),
+            layout_:None,
             bcs: None,
             display: None,
         });
@@ -1273,6 +1277,7 @@ impl RpcExampleProvider {
                     version: SequenceNumber::from_u64(version),
                     digest: ObjectDigest::new(self.rng.gen()),
                     type_: Some(ObjectType::Struct(MoveObjectType::gas_coin())),
+                    layout_:None,
                     bcs: None,
                     display: None,
                 })
@@ -1525,6 +1530,7 @@ impl RpcExampleProvider {
                 version: SequenceNumber::from_u64(4),
                 digest: ObjectDigest::new(self.rng.gen()),
                 type_: Some(ObjectType::Struct(MoveObjectType::gas_coin())),
+                layout_:None,
                 bcs: None,
                 display: None,
             }),
@@ -1545,6 +1551,7 @@ impl RpcExampleProvider {
                 version: version2,
                 digest: ObjectDigest::new(self.rng.gen()),
                 type_: Some(ObjectType::Struct(MoveObjectType::gas_coin())),
+                layout_:None,
                 bcs: None,
                 display: None,
             }),
