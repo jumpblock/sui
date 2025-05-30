@@ -113,6 +113,7 @@ pub(crate) async fn object_data_with_options(
         version: object.version(),
         digest: object.digest(),
         type_,
+        layout_:None,
         owner,
         previous_transaction,
         storage_rebate,
