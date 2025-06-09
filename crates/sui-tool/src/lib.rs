@@ -7,7 +7,7 @@ use fastcrypto::traits::ToFromBytes;
 use futures::future::join_all;
 use futures::future::AbortHandle;
 use itertools::Itertools;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::fmt::Write;
 use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
@@ -24,7 +24,7 @@ use sui_protocol_config::Chain;
 use sui_sdk::SuiClient;
 use sui_sdk::SuiClientBuilder;
 use sui_storage::object_store::http::HttpDownloaderBuilder;
-use sui_storage::object_store::util::Manifest;
+use sui_storage::object_store::util::{Manifest};
 use sui_storage::object_store::util::PerEpochManifest;
 use sui_storage::object_store::util::MANIFEST_FILENAME;
 use sui_types::committee::QUORUM_THRESHOLD;
@@ -65,10 +65,12 @@ use sui_types::messages_grpc::{
 use crate::formal_snapshot_util::{read_summaries_for_list_no_verify, FormalSnapshotWorker};
 use sui_types::storage::ReadStore;
 use tracing::info;
+use crate::progress_writer::ProgressWriter;
 
 pub mod commands;
 pub mod db_tool;
 mod formal_snapshot_util;
+mod progress_writer;
 
 #[derive(
     Clone, Serialize, Deserialize, Debug, PartialEq, Copy, PartialOrd, Ord, Eq, ValueEnum, Default,
@@ -1044,8 +1046,17 @@ pub async fn download_db_snapshot(
         ..Default::default()
     }
     .make()?;
-    let m = MultiProgress::new();
+
     let path = path.to_path_buf();
+    let progress_writer=ProgressWriter::new(format!("{}/epoch_{}/progress.txt",path.to_str().unwrap(), epoch));
+    let exists=progress_writer.get_all()?;
+    let exists:HashSet<String>=exists.iter().cloned().collect();
+    println!("total files={},excludes={}",files.len(),exists.len());
+    files= files.into_iter()
+        .filter(|x| !exists.contains(x))
+        .collect();
+
+    let m = MultiProgress::new();
     let snapshot_handle = tokio::spawn(async move {
         let progress_bar = m.add(
             ProgressBar::new(files.len() as u64).with_style(
@@ -1062,10 +1073,16 @@ pub async fn download_db_snapshot(
                 let local_store = local_store.clone();
                 let remote_store = remote_store.clone();
                 let counter_cloned = file_counter.clone();
+                let progress_bar_cloned = progress_bar.clone();
+                let mut progress_writer_cloned = progress_writer.clone();
                 async move {
                     counter_cloned.fetch_add(1, Ordering::Relaxed);
                     let file_path = get_path(format!("epoch_{}/{}", epoch, file).as_str());
-                    copy_file(&file_path, &file_path, &remote_store, &local_store).await?;
+                    if copy_file(&file_path, &file_path, &remote_store, &local_store).await.is_ok(){
+                        progress_writer_cloned.write(file.to_string()).await?;
+                    }else{
+                        progress_bar_cloned.println(format!("copy file epoch_{}/{}", epoch, file));
+                    }
                     Ok::<::object_store::path::Path, anyhow::Error>(file_path.clone())
                 }
             })
