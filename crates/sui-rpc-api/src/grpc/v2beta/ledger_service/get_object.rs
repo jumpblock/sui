@@ -100,16 +100,14 @@ fn get_object_impl(
     version: Option<u64>,
     read_mask: &FieldMaskTree,
 ) -> Result<Object, RpcError> {
-    let object = if let Some(version) = version {
-        service
+    let (object,layout)=if let Some(version) = version {
+        let object=service
             .reader
             .get_object_with_version(object_id, version)?
-            .ok_or_else(|| ObjectNotFoundError::new_with_version(object_id, version))?
+            .ok_or_else(|| ObjectNotFoundError::new_with_version(object_id, version))?;
+        (object,None)
     } else {
-        service
-            .reader
-            .get_object(object_id)?
-            .ok_or_else(|| ObjectNotFoundError::new(object_id))?
+        service.reader.get_object_read(object_id)?
     };
 
     let mut message = Object::default();
@@ -139,6 +137,8 @@ fn get_object_impl(
     }
 
     message.merge(object, read_mask);
-
+    if let Some(layout) = layout {
+        message.merge(layout,read_mask);
+    }
     Ok(message)
 }

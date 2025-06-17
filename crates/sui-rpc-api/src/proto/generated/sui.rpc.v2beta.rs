@@ -2290,6 +2290,9 @@ pub struct Object {
     /// JSON rendering of the object.
     #[prost(message, optional, boxed, tag = "100")]
     pub json: ::core::option::Option<::prost::alloc::boxed::Box<::prost_types::Value>>,
+    /// The move struct layout
+    #[prost(string, optional, tag = "14")]
+    pub layout: ::core::option::Option<::prost::alloc::string::String>,
 }
 /// Module defined by a package.
 #[derive(Clone, PartialEq, ::prost::Message)]

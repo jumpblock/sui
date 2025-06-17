@@ -3,7 +3,7 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
-
+use move_core_types::annotated_value::MoveStructLayout;
 use sui_sdk_types::{CheckpointSequenceNumber, EpochId, SignedTransaction, ValidatorCommittee};
 use sui_sdk_types::{Object, ObjectId, Version};
 use sui_types::balance_change::BalanceChange;
@@ -12,8 +12,9 @@ use sui_types::storage::error::{Error as StorageError, Result};
 use sui_types::storage::RpcStateReader;
 use sui_types::storage::{ObjectStore, TransactionInfo};
 use tap::Pipe;
-
-use crate::Direction;
+use sui_types::object::ObjectRead;
+use crate::{Direction};
+use crate::error::ObjectNotFoundError;
 
 #[derive(Clone)]
 pub struct StateReader {
@@ -35,6 +36,21 @@ impl StateReader {
             .get_object(&object_id.into())
             .map(TryInto::try_into)
             .transpose()
+            .map_err(Into::into)
+    }
+    #[tracing::instrument(skip(self))]
+    pub fn get_object_read(&self, object_id: ObjectId) -> crate::Result<(Object,Option<MoveStructLayout>)> {
+        self.inner
+            .get_object_read(&object_id.into())
+            .map(|obj|{
+                match obj {
+                    ObjectRead::NotExists(_)|ObjectRead::Deleted(_) => None,
+                    ObjectRead::Exists(_a,b,c) => Object::try_from(b).map(|o|(o,c)).ok()
+                }
+            })
+            .ok_or_else(|| ObjectNotFoundError::new(object_id))
+            .transpose()
+            .ok_or_else(|| ObjectNotFoundError::new(object_id))?
             .map_err(Into::into)
     }
 
