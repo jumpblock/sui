@@ -17,7 +17,7 @@ use move_core_types::language_storage::StructTag;
 use schemars::JsonSchema;
 use serde::Deserialize;
 use serde::Serialize;
-use serde_json::{json, Value};
+use serde_json::{Value};
 use serde_with::serde_as;
 use serde_with::DisplayFromStr;
 use sui_protocol_config::ProtocolConfig;
