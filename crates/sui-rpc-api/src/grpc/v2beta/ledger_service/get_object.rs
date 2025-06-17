@@ -1,13 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-
 use prost_types::FieldMask;
 use sui_sdk_types::ObjectId;
 
 use crate::error::ObjectNotFoundError;
 use crate::field_mask::FieldMaskTree;
 use crate::field_mask::FieldMaskUtil;
-use crate::message::MessageMergeFrom;
+use crate::message::{MessageMerge, MessageMergeFrom};
 use crate::proto::google::rpc::bad_request::FieldViolation;
 use crate::proto::rpc::v2beta::BatchGetObjectsRequest;
 use crate::proto::rpc::v2beta::BatchGetObjectsResponse;
@@ -101,17 +100,21 @@ fn get_object_impl(
     version: Option<u64>,
     read_mask: &FieldMaskTree,
 ) -> Result<Object, RpcError> {
-    let object = if let Some(version) = version {
-        service
+    if let Some(version) = version {
+        let object=service
             .reader
             .get_object_with_version(object_id, version)?
-            .ok_or_else(|| ObjectNotFoundError::new_with_version(object_id, version))?
+            .ok_or_else(|| ObjectNotFoundError::new_with_version(object_id, version))?;
+        Ok(Object::merge_from(object, read_mask))
     } else {
-        service
-            .reader
-            .get_object(object_id)?
-            .ok_or_else(|| ObjectNotFoundError::new(object_id))?
-    };
+        let (object,layout)=service.reader
+            .get_object_read(object_id)?;
+        let mut obj=Object::merge_from(object, read_mask);
+        if let Some(layout) = layout {
+            obj.merge(layout,read_mask);
+        }
+        Ok(obj)
+    }
 
-    Ok(Object::merge_from(object, read_mask))
+
 }

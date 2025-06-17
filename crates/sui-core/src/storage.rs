@@ -25,7 +25,7 @@ use sui_types::messages_checkpoint::EndOfEpochData;
 use sui_types::messages_checkpoint::FullCheckpointContents;
 use sui_types::messages_checkpoint::VerifiedCheckpoint;
 use sui_types::messages_checkpoint::VerifiedCheckpointContents;
-use sui_types::object::Object;
+use sui_types::object::{Object, ObjectRead};
 use sui_types::storage::error::Error as StorageError;
 use sui_types::storage::error::Result;
 use sui_types::storage::CoinInfo;
@@ -378,6 +378,9 @@ impl ObjectStore for RestReadStore {
         version: sui_types::base_types::VersionNumber,
     ) -> Option<Object> {
         self.rocks.get_object_by_key(object_id, version)
+    }
+    fn get_object_read(&self, object_id: &sui_types::base_types::ObjectID) -> Option<ObjectRead> {
+        self.state.get_object_read(object_id).ok()
     }
 }
 

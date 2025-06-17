@@ -2280,6 +2280,9 @@ pub struct Object {
     /// the present storage gas price.
     #[prost(uint64, optional, tag = "13")]
     pub storage_rebate: ::core::option::Option<u64>,
+    /// The move struct layout
+    #[prost(string, optional, tag = "14")]
+    pub layout: ::core::option::Option<::prost::alloc::string::String>,
 }
 /// Module defined by a package.
 #[derive(Clone, PartialEq, ::prost::Message)]

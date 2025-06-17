@@ -65,6 +65,9 @@ message Object {
   // This number is re-calculated each time the object is mutated based on
   // the present storage gas price.
   optional uint64 storage_rebate = 13;
+
+  //The move struct layout
+  optional string layout = 14;
 }
 
 // Module defined by a package.
