@@ -82,7 +82,7 @@ use sui_types::sui_system_state::{get_sui_system_state, SuiSystemState};
 use sui_types::transaction::{VerifiedSignedTransaction, VerifiedTransaction};
 use tap::TapOptional;
 use tracing::{debug, info, instrument, trace, warn};
-
+use typed_store::Map;
 use super::cache_types::Ticket;
 use super::ExecutionCacheAPI;
 use super::{
@@ -1328,6 +1328,20 @@ impl WritebackCache {
         self.packages.invalidate_all();
         assert_empty(&self.packages);
     }
+
+    pub fn reload_cached(&self, objects: Vec<(ObjectID, Object)>) {
+        for (object_id, object) in objects {
+            let _ = self.object_by_id_cache.insert(
+                &object_id,
+                LatestObjectCacheEntry::Object(object.version(), object.into()),
+                Ticket::Write,
+            );
+        }
+    }
+    pub fn clear(&self) {
+        self.cached.clear_and_assert_empty();
+        self.object_by_id_cache.invalidate_all();
+    }
 }
 
 impl ExecutionCacheAPI for WritebackCache {}
@@ -2203,6 +2217,22 @@ impl ExecutionCacheWrite for WritebackCache {
     #[cfg(test)]
     fn write_object_entry_for_test(&self, object: Object) {
         self.write_object_entry(&object.id(), object.version(), object.into());
+    }
+
+    fn reload_objects(&self, objects: Vec<(ObjectID, Object)>) {
+        self.reload_cached(objects);
+    }
+
+    fn update_underlying(&self, clear_cache: bool) ->SuiResult{
+        self.store
+            .perpetual_tables
+            .objects
+            .try_catch_up_with_primary()?;
+
+        if clear_cache {
+            self.clear();
+        }
+        Ok(())
     }
 }
 
