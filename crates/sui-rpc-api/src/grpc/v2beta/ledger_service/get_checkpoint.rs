@@ -8,7 +8,7 @@ use crate::message::MessageMerge;
 use crate::message::MessageMergeFrom;
 use crate::proto::google::rpc::bad_request::FieldViolation;
 use crate::proto::rpc::v2beta::get_checkpoint_request::CheckpointId;
-use crate::proto::rpc::v2beta::Checkpoint;
+use crate::proto::rpc::v2beta::{Checkpoint, Event};
 use crate::proto::rpc::v2beta::ExecutedTransaction;
 use crate::proto::rpc::v2beta::GetCheckpointRequest;
 use crate::proto::rpc::v2beta::Object;
@@ -22,6 +22,7 @@ use crate::RpcError;
 use crate::RpcService;
 use prost_types::FieldMask;
 use sui_sdk_types::CheckpointDigest;
+use sui_types::sui_sdk_types_conversions::struct_tag_sdk_to_core;
 
 #[tracing::instrument(skip(service))]
 pub fn get_checkpoint(
@@ -101,6 +102,7 @@ pub fn get_checkpoint(
                 .into_iter()
                 .map(|t| {
                     core_transaction_to_executed_transaction_proto(
+                        service,
                         t,
                         summary.sequence_number,
                         summary.timestamp_ms,
@@ -115,6 +117,7 @@ pub fn get_checkpoint(
 }
 
 pub(crate) fn checkpoint_data_to_checkpoint_proto(
+    service: &RpcService,
     checkpoint_data: sui_types::full_checkpoint_content::CheckpointData,
     read_mask: &FieldMaskTree,
 ) -> Result<Checkpoint, RpcError> {
@@ -144,6 +147,7 @@ pub(crate) fn checkpoint_data_to_checkpoint_proto(
             .into_iter()
             .map(|t| {
                 core_transaction_to_executed_transaction_proto(
+                    service,
                     t,
                     sequence_number,
                     timestamp_ms,
@@ -157,6 +161,7 @@ pub(crate) fn checkpoint_data_to_checkpoint_proto(
 }
 
 fn core_transaction_to_executed_transaction_proto(
+    service: &RpcService,
     sui_types::full_checkpoint_content::CheckpointTransaction {
         transaction,
         effects,
@@ -216,7 +221,36 @@ fn core_transaction_to_executed_transaction_proto(
         .and_then(|mask| {
             events.map(|events| {
                 sui_sdk_types::TransactionEvents::try_from(events)
-                    .map(|events| TransactionEvents::merge_from(events, &mask))
+                    .map(|events| {
+                        let mut message=TransactionEvents::merge_from(events.clone(), &mask);
+                        if let Some(event_mask) = mask.subtree(TransactionEvents::EVENTS_FIELD.name) {
+                            if event_mask.contains(Event::JSON_FIELD.name) {
+                                for (message, event) in message.events.iter_mut().zip(&events.0) {
+                                    message.json = struct_tag_sdk_to_core(event.type_.clone())
+                                        .ok()
+                                        .and_then(|struct_tag| {
+                                            let layout = service
+                                                .reader
+                                                .inner()
+                                                .get_struct_layout(&struct_tag)
+                                                .ok()
+                                                .flatten()?;
+                                            Some((layout, &event.contents))
+                                        })
+                                        .and_then(|(layout, contents)| {
+                                            sui_types::proto_value::ProtoVisitorBuilder::new(
+                                                service.config.max_json_move_value_size(),
+                                            )
+                                                .deserialize_value(contents, &layout)
+                                                .map_err(|e| tracing::debug!("unable to convert to JSON: {e}"))
+                                                .ok()
+                                                .map(Box::new)
+                                        });
+                                }
+                            }
+                        }
+                        message
+                    })
             })
         })
         .transpose()?;
