@@ -10,6 +10,7 @@ use tokio::sync::oneshot;
 use tracing::error;
 use tracing::info;
 use tracing::trace;
+use crate::RpcService;
 
 const CHECKPOINT_MAILBOX_SIZE: usize = 1024;
 const MAILBOX_SIZE: usize = 128;
@@ -43,11 +44,14 @@ pub struct SubscriptionService {
     mailbox: mpsc::Receiver<SubscriptionRequest>,
     subscribers: Vec<mpsc::Sender<Arc<Checkpoint>>>,
 
+    service:RpcService,
+
     metrics: SubscriptionMetrics,
 }
 
 impl SubscriptionService {
     pub fn build(
+        service: RpcService,
         registry: &prometheus::Registry,
     ) -> (mpsc::Sender<CheckpointData>, SubscriptionServiceHandle) {
         let metrics = SubscriptionMetrics::new(registry);
@@ -59,6 +63,7 @@ impl SubscriptionService {
                 checkpoint_mailbox,
                 mailbox,
                 subscribers: Vec::new(),
+                service,
                 metrics,
             }
             .start(),
@@ -120,6 +125,7 @@ impl SubscriptionService {
 
         let checkpoint =
             match crate::grpc::v2beta::ledger_service::get_checkpoint::checkpoint_data_to_checkpoint_proto(
+                &self.service,
                 checkpoint,
                 &crate::field_mask::FieldMaskTree::new_wildcard(),
             ) {
