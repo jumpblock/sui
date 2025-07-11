@@ -132,7 +132,7 @@ pub fn resolve_transaction(
         user_provided_budget
     } else {
         let simulation_result = executor
-            .simulate_transaction(resolved_transaction.clone())
+            .simulate_transaction(resolved_transaction.clone(),vec![])
             .map_err(anyhow::Error::from)?;
 
         let estimate = estimate_gas_budget_from_gas_cost(
@@ -172,6 +172,7 @@ pub fn resolve_transaction(
             super::simulate_transaction::simulate_transaction_impl(
                 executor,
                 resolved_transaction.clone().try_into()?,
+                vec![],
                 &mask,
             )
         })

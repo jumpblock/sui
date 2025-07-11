@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::str::FromStr;
 use std::sync::Arc;
 
 use crate::field_mask::FieldMaskTree;
@@ -20,6 +21,8 @@ use sui_types::balance_change::derive_balance_changes;
 use sui_types::transaction_executor::SimulateTransactionResult;
 use sui_types::transaction_executor::TransactionExecutor;
 use tap::Pipe;
+use sui_types::base_types::{ObjectID, SuiAddress};
+use sui_types::object::Object;
 
 pub fn simulate_transaction(
     service: &RpcService,
@@ -47,21 +50,33 @@ pub fn simulate_transaction(
                 .with_reason(ErrorReason::FieldInvalid)
         })
         .map_err(RpcError::from)?;
-
-    simulate_transaction_impl(executor, transaction, &read_mask)
+    let borrowed_coins=request.borrowed_coins.into_iter().map(|p|{
+        let object_id=p.object_id.ok_or_else(|| FieldViolation::new("object_id").with_reason(ErrorReason::FieldMissing)).map_err(RpcError::from)?;
+        let owner=p.owner.ok_or_else(|| FieldViolation::new("owner").with_reason(ErrorReason::FieldMissing)).map_err(RpcError::from)?
+            .address.ok_or_else(|| FieldViolation::new("address").with_reason(ErrorReason::FieldMissing)).map_err(RpcError::from)?;
+        let amount=p.balance.ok_or_else(|| FieldViolation::new("balance").with_reason(ErrorReason::FieldMissing)).map_err(RpcError::from)?;
+        let obj=Object::with_id_owner_gas_for_testing(
+            ObjectID::from_str(&object_id).unwrap(),
+            SuiAddress::from_str(&owner).map_err(RpcError::from)?,
+            amount,
+        );
+        Ok((obj, amount))
+    }).collect::<Result<Vec<_>>>()?;
+    simulate_transaction_impl(executor, transaction,borrowed_coins, &read_mask)
 }
 
 pub fn simulate_transaction_impl(
     executor: &Arc<dyn TransactionExecutor>,
     transaction: sui_sdk_types::Transaction,
+    borrowed_coins:Vec<(Object, u64)>,
     read_mask: &FieldMaskTree,
 ) -> Result<SimulateTransactionResponse> {
-    if transaction.gas_payment.objects.is_empty() {
-        return Err(RpcError::new(
-            tonic::Code::InvalidArgument,
-            "no gas payment provided",
-        ));
-    }
+    // if transaction.gas_payment.objects.is_empty() {
+    //     return Err(RpcError::new(
+    //         tonic::Code::InvalidArgument,
+    //         "no gas payment provided",
+    //     ));
+    // }
 
     let SimulateTransactionResult {
         input_objects,
@@ -70,7 +85,7 @@ pub fn simulate_transaction_impl(
         effects,
         mock_gas_id: _,
     } = executor
-        .simulate_transaction(transaction.clone().try_into()?)
+        .simulate_transaction(transaction.clone().try_into()?,borrowed_coins)
         .map_err(anyhow::Error::from)?;
 
     let transaction = if let Some(submask) = read_mask.subtree("transaction") {

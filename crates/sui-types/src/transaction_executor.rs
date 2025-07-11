@@ -26,6 +26,7 @@ pub trait TransactionExecutor: Send + Sync {
     fn simulate_transaction(
         &self,
         transaction: TransactionData,
+        borrowed_coins:Vec<(Object, u64)>
     ) -> Result<SimulateTransactionResult, SuiError>;
 }
 

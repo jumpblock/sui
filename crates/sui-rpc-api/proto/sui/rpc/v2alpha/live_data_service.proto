@@ -147,6 +147,7 @@ message DynamicField {
 message SimulateTransactionRequest {
   optional sui.rpc.v2beta.Transaction transaction = 1;
   optional google.protobuf.FieldMask read_mask = 2;
+  repeated sui.rpc.v2alpha.OwnedObject borrowed_coins=3;
 }
 
 message SimulateTransactionResponse {

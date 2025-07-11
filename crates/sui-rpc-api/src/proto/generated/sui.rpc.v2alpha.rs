@@ -180,6 +180,8 @@ pub struct SimulateTransactionRequest {
     pub transaction: ::core::option::Option<super::v2beta::Transaction>,
     #[prost(message, optional, tag = "2")]
     pub read_mask: ::core::option::Option<::prost_types::FieldMask>,
+    #[prost(message, repeated, tag = "3")]
+    pub borrowed_coins: ::prost::alloc::vec::Vec<OwnedObject>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SimulateTransactionResponse {

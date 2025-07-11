@@ -178,6 +178,7 @@ use crate::validator_tx_finalizer::ValidatorTxFinalizer;
 use sui_types::committee::CommitteeTrait;
 use sui_types::deny_list_v2::check_coin_deny_list_v2_during_signing;
 use sui_types::execution_config_utils::to_binary_config;
+use crate::execution_cache::override_cache::OverrideCache;
 
 #[cfg(test)]
 #[path = "unit_tests/authority_tests.rs"]
@@ -2045,6 +2046,7 @@ impl AuthorityState {
     pub fn simulate_transaction(
         &self,
         transaction: TransactionData,
+        borrowed_coins:Vec<(Object, u64)>
     ) -> SuiResult<SimulateTransactionResult> {
         if transaction.kind().is_system_tx() {
             return Err(SuiError::UnsupportedFeatureError {
@@ -2059,13 +2061,14 @@ impl AuthorityState {
             });
         }
 
-        self.simulate_transaction_impl(&epoch_store, transaction)
+        self.simulate_transaction_impl(&epoch_store, transaction,borrowed_coins)
     }
 
     fn simulate_transaction_impl(
         &self,
         epoch_store: &AuthorityPerEpochStore,
         transaction: TransactionData,
+        borrowed_coins:Vec<(Object, u64)>
     ) -> SuiResult<SimulateTransactionResult> {
         // Cheap validity checks for a transaction, including input size limits.
         transaction.validity_check_no_gas_check(epoch_store.protocol_config())?;
@@ -2082,13 +2085,37 @@ impl AuthorityState {
             self.get_backing_package_store().as_ref(),
         )?;
 
-        let (input_objects, receiving_objects) = self.input_loader.read_objects_for_signing(
+        let (mut input_objects, receiving_objects) = self.input_loader.read_objects_for_signing(
             // We don't want to cache this transaction since it's a dry run.
             None,
             &input_object_kinds,
             &receiving_object_refs,
             epoch_store.epoch(),
         )?;
+
+        let mut override_objects=Vec::with_capacity(borrowed_coins.len());
+        if borrowed_coins.len() > 0 {
+            borrowed_coins.iter().for_each(|(borrowed_coin, _borrowed_amount)|{
+                let object_read_result = ObjectReadResult {
+                    input_object_kind: InputObjectKind::ImmOrOwnedMoveObject(borrowed_coin.compute_object_reference()),
+                    object: ObjectReadResultKind::Object(borrowed_coin.clone()),
+                };
+                input_objects.push(object_read_result.clone());
+                override_objects.push(object_read_result);
+            });
+        }
+
+        let store=OverrideCache::new(self.execution_cache_trait_pointers.clone(), override_objects);
+        if borrowed_coins.len() > 0 {
+            // update input objects again with override cache
+            for object_read_result in input_objects.iter_mut() {
+                if let ObjectReadResultKind::Object(object) = &object_read_result.object {
+                    if let Some(object) = (&store as &dyn ObjectCacheRead).get_object(&object.id()) {
+                        object_read_result.object = ObjectReadResultKind::Object(object);
+                    }
+                }
+            }
+        }
 
         // make a gas object if one was not provided
         let mut gas_data = transaction.gas_data().clone();
@@ -2144,7 +2171,7 @@ impl AuthorityState {
         let expensive_checks = false;
         let (inner_temp_store, _, effects, _timings, _execution_error) = executor
             .execute_transaction_to_effects(
-                self.get_backing_store().as_ref(),
+                &store,
                 protocol_config,
                 self.metrics.limits_metrics.clone(),
                 expensive_checks,
