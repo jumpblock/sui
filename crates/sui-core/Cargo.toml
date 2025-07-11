@@ -91,6 +91,7 @@ sui-storage.workspace = true
 sui-tls.workspace = true
 sui-types.workspace = true
 nonempty.workspace = true
+crossbeam-channel = "0.5.0"
 
 [dev-dependencies]
 sui-move-build.workspace = true

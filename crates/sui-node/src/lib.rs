@@ -1796,9 +1796,9 @@ impl SuiNode {
 
             if stop_condition == StopReason::RunWithRangeCondition {
                 SuiNode::shutdown(&self).await;
-                self.shutdown_channel_tx
-                    .send(run_with_range)
-                    .expect("RunWithRangeCondition met but failed to send shutdown message");
+                // self.shutdown_channel_tx
+                //     .send(run_with_range)
+                //     .expect("RunWithRangeCondition met but failed to send shutdown message");
                 return Ok(());
             }
 

@@ -219,6 +219,7 @@ message SimulateTransactionRequest {
   //
   // This option will be ignored if `checks` is `DISABLED`.
   optional bool do_gas_selection = 4;
+  repeated sui.rpc.v2alpha.OwnedObject borrowed_coins=5;
 }
 
 message SimulateTransactionResponse {

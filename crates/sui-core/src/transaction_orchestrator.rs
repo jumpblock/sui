@@ -45,6 +45,7 @@ use tokio::sync::broadcast::Receiver;
 use tokio::task::JoinHandle;
 use tokio::time::timeout;
 use tracing::{debug, error, error_span, info, instrument, warn, Instrument};
+use sui_types::object::Object;
 
 // How long to wait for local execution (including parents) before a timeout
 // is returned to client.
@@ -700,8 +701,9 @@ where
         &self,
         transaction: TransactionData,
         checks: VmChecks,
+        borrowed_coins:Vec<(Object, u64)>
     ) -> Result<SimulateTransactionResult, SuiError> {
         self.validator_state
-            .simulate_transaction(transaction, checks)
+            .simulate_transaction(transaction, checks,borrowed_coins)
     }
 }

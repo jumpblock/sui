@@ -248,6 +248,9 @@ pub struct SimulateTransactionRequest {
     /// This option will be ignored if `checks` is `DISABLED`.
     #[prost(bool, optional, tag = "4")]
     pub do_gas_selection: ::core::option::Option<bool>,
+
+    #[prost(message, repeated, tag = "5")]
+    pub borrowed_coins: ::prost::alloc::vec::Vec<OwnedObject>,
 }
 /// Nested message and enum types in `SimulateTransactionRequest`.
 pub mod simulate_transaction_request {
@@ -1005,9 +1008,9 @@ pub mod live_data_service_server {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
                                 <T as LiveDataService>::simulate_transaction(
-                                        &inner,
-                                        request,
-                                    )
+                                    &inner,
+                                    request,
+                                )
                                     .await
                             };
                             Box::pin(fut)
@@ -2351,9 +2354,9 @@ pub mod signature_verification_service_server {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
                                 <T as SignatureVerificationService>::verify_signature(
-                                        &inner,
-                                        request,
-                                    )
+                                    &inner,
+                                    request,
+                                )
                                     .await
                             };
                             Box::pin(fut)
@@ -2590,13 +2593,13 @@ pub mod subscription_service_server {
     pub trait SubscriptionService: std::marker::Send + std::marker::Sync + 'static {
         /// Server streaming response type for the SubscribeCheckpoints method.
         type SubscribeCheckpointsStream: tonic::codegen::tokio_stream::Stream<
-                Item = std::result::Result<
-                    super::SubscribeCheckpointsResponse,
-                    tonic::Status,
-                >,
-            >
-            + std::marker::Send
-            + 'static;
+            Item = std::result::Result<
+                super::SubscribeCheckpointsResponse,
+                tonic::Status,
+            >,
+        >
+        + std::marker::Send
+        + 'static;
         /// Subscribe to the stream of checkpoints.
         ///
         /// This API provides a subscription to the checkpoint stream for the Sui
@@ -2713,9 +2716,9 @@ pub mod subscription_service_server {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
                                 <T as SubscriptionService>::subscribe_checkpoints(
-                                        &inner,
-                                        request,
-                                    )
+                                    &inner,
+                                    request,
+                                )
                                     .await
                             };
                             Box::pin(fut)

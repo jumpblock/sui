@@ -13699,6 +13699,7 @@ dependencies = [
  "consensus-core",
  "count-min-sketch",
  "criterion",
+ "crossbeam-channel",
  "dashmap",
  "diffy",
  "either",
