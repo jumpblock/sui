@@ -5,11 +5,11 @@ use std::pin::Pin;
 
 use crate::subscription::SubscriptionServiceHandle;
 use sui_rpc::field::FieldMaskTree;
-use sui_rpc::merge::Merge;
 use sui_rpc::proto::sui::rpc::v2beta2::subscription_service_server::SubscriptionService;
-use sui_rpc::proto::sui::rpc::v2beta2::Checkpoint;
-use sui_rpc::proto::sui::rpc::v2beta2::SubscribeCheckpointsRequest;
+use sui_rpc::proto::sui::rpc::v2beta2::{SubscribeCheckpointsRequest};
 use sui_rpc::proto::sui::rpc::v2beta2::SubscribeCheckpointsResponse;
+use tracing::error;
+use crate::grpc::v2beta2::ledger_service::get_checkpoint::checkpoint_data_to_checkpoint_proto;
 
 #[tonic::async_trait]
 impl SubscriptionService for SubscriptionServiceHandle {
@@ -34,14 +34,26 @@ impl SubscriptionService for SubscriptionServiceHandle {
             ));
         };
 
+        let service=self.service.clone();
         let response = Box::pin(async_stream::stream! {
             while let Some(checkpoint) = receiver.recv().await {
                 let cursor = checkpoint.checkpoint_summary.sequence_number;
 
-                let checkpoint = Checkpoint::merge_from(
-                    checkpoint.as_ref().to_owned(), // TODO optimize so checkpoint isn't cloned
-                    &read_mask
-                );
+                // let checkpoint = Checkpoint::merge_from(
+                //     checkpoint.as_ref().to_owned(), // TODO optimize so checkpoint isn't cloned
+                //     &read_mask
+                // );
+                let checkpoint =match checkpoint_data_to_checkpoint_proto(
+                        &service.clone(),
+                        checkpoint.as_ref().to_owned(),
+                        &read_mask,
+                    ) {
+                        Ok(checkpoint) => checkpoint,
+                        Err(e) => {
+                            error!("unable to convert checkpoint to proto: {e:?}");
+                            return;
+                        }
+                    };
 
                 let response = SubscribeCheckpointsResponse {
                     cursor: Some(cursor),
