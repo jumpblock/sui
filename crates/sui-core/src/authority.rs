@@ -1390,20 +1390,6 @@ impl AuthorityState {
         let tx_guard = epoch_store.acquire_tx_guard(certificate)?;
 
         let tx_cache_reader = self.get_transaction_cache_reader();
-        if epoch_store.protocol_config().mysticeti_fastpath()
-            && !certificate.is_consensus_tx()
-            && execution_env.scheduling_source == SchedulingSource::NonFastPath
-        {
-            // If this transaction is not scheduled from fastpath, it must be either
-            // from consensus or from checkpoint, i.e. it must be finalized.
-            // To avoid re-executing fastpath transactions, we always attempt to flush
-            // fastpath outputs if it is already there.
-            // If it does get flushed, the effects will appear in the cache, and we will
-            // skip the execution in the next check.
-            self.get_cache_writer()
-                .flush_fastpath_transaction_outputs(*tx_digest, epoch_store.epoch());
-        }
-
         if let Some(effects) = tx_cache_reader.get_executed_effects(tx_digest) {
             if let Some(expected_effects_digest) = execution_env.expected_effects_digest {
                 assert_eq!(
@@ -1444,17 +1430,46 @@ impl AuthorityState {
         }
 
         let scheduling_source = execution_env.scheduling_source;
-        let (transaction_outputs, timings, execution_error_opt) = self
-            .process_certificate(
-                &tx_guard,
-                &execution_guard,
-                certificate,
-                execution_env,
-                epoch_store,
+        let mysticeti_fp_outputs = if epoch_store.protocol_config().mysticeti_fastpath() {
+            tx_cache_reader.get_mysticeti_fastpath_outputs(tx_digest)
+        } else {
+            None
+        };
+
+        let (transaction_outputs, timings, execution_error_opt) = if let Some(outputs) =
+            mysticeti_fp_outputs
+        {
+            assert!(
+                !certificate.is_consensus_tx(),
+                "Mysticeti fastpath executed transactions cannot be consensus transactions"
+            );
+            // If this transaction is not scheduled from fastpath, it must be either
+            // from consensus or from checkpoint, i.e. it must be finalized.
+            // To avoid re-executing fastpath transactions, we check if the outputs are already
+            // in the mysticeti fastpath outputs cache. If so, we skip the execution and commit the transaction.
+            debug!(
+                ?tx_digest,
+                "Mysticeti fastpath certified transaction outputs found in cache, skipping execution and committing"
+            );
+            (outputs, None, None)
+        } else {
+            let (transaction_outputs, timings, execution_error_opt) = self
+                .process_certificate(
+                    &tx_guard,
+                    &execution_guard,
+                    certificate,
+                    execution_env,
+                    epoch_store,
+                )
+                .tap_err(|e| {
+                    info!(name = ?self.name, ?tx_digest, "Error executing transaction: {e}");
+                })?;
+            (
+                Arc::new(transaction_outputs),
+                Some(timings),
+                execution_error_opt,
             )
-            .tap_err(|e| {
-                info!(name = ?self.name, ?tx_digest, "Error executing transaction: {e}");
-            })?;
+        };
 
         fail_point!("crash");
 
@@ -1468,7 +1483,7 @@ impl AuthorityState {
 
         if scheduling_source == SchedulingSource::MysticetiFastPath {
             self.get_cache_writer()
-                .write_fastpath_transaction_outputs(transaction_outputs.into());
+                .write_fastpath_transaction_outputs(transaction_outputs);
         } else {
             let commit_result =
                 self.commit_certificate(certificate, transaction_outputs, epoch_store);
@@ -1513,12 +1528,14 @@ impl AuthorityState {
         tx_guard.commit_tx();
 
         let elapsed = execution_start_time.elapsed();
-        epoch_store.record_local_execution_time(
-            certificate.data().transaction_data(),
-            &effects,
-            timings,
-            elapsed,
-        );
+        if let Some(timings) = timings {
+            epoch_store.record_local_execution_time(
+                certificate.data().transaction_data(),
+                &effects,
+                timings,
+                elapsed,
+            );
+        }
 
         let elapsed_us = elapsed.as_micros() as f64;
         if elapsed_us > 0.0 {
@@ -1690,7 +1707,7 @@ impl AuthorityState {
     fn commit_certificate(
         &self,
         certificate: &VerifiedExecutableTransaction,
-        transaction_outputs: TransactionOutputs,
+        transaction_outputs: Arc<TransactionOutputs>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> SuiResult {
         let _scope: Option<mysten_metrics::MonitoredScopeGuard> =
@@ -1710,8 +1727,6 @@ impl AuthorityState {
 
         // Allow testing what happens if we crash here.
         fail_point!("crash");
-
-        let transaction_outputs=Arc::new(transaction_outputs);
 
         self.get_cache_writer()
             .write_transaction_outputs(epoch_store.epoch(), transaction_outputs.clone());
