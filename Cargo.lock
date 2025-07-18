@@ -13917,6 +13917,7 @@ dependencies = [
  "move-binary-format",
  "move-core-types",
  "move-package",
+ "mysten-common",
  "mysten-metrics",
  "p256",
  "passkey-authenticator",
