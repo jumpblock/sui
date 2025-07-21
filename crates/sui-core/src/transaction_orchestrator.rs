@@ -51,6 +51,7 @@ use sui_types::object::Object;
 // is returned to client.
 const LOCAL_EXECUTION_TIMEOUT: Duration = Duration::from_secs(10);
 
+// Timeout for waiting for finality for each transaction.
 const WAIT_FOR_FINALITY_TIMEOUT: Duration = Duration::from_secs(30);
 
 pub struct TransactiondOrchestrator<A: Clone> {
@@ -273,8 +274,13 @@ where
                 QuorumDriverError::QuorumDriverInternalError(e)
             })?;
 
-        let Ok(result) = timeout(WAIT_FOR_FINALITY_TIMEOUT, ticket).await else {
-            debug!(?tx_digest, "Timeout waiting for transaction finality.");
+        let finality_timeout = std::env::var("WAIT_FOR_FINALITY_TIMEOUT_SECS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .map(Duration::from_secs)
+            .unwrap_or(WAIT_FOR_FINALITY_TIMEOUT);
+        let Ok(result) = timeout(finality_timeout, ticket).await else {
+            warn!(?tx_digest, "Timeout waiting for transaction finality.");
             self.metrics.wait_for_finality_timeout.inc();
             return Err(QuorumDriverError::TimeoutBeforeFinality);
         };
