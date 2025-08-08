@@ -358,7 +358,7 @@ impl ObjectCacheRead for OverrideCache {
         self.fallback.object_cache_reader.get_highest_pruned_checkpoint()
     }
 
-    fn notify_read_input_objects<'a>(&'a self, input_and_receiving_keys: &'a [InputKey], receiving_keys: &'a HashSet<InputKey>, epoch: &'a EpochId) -> BoxFuture<'a, ()> {
+    fn notify_read_input_objects<'a>(&'a self, input_and_receiving_keys: &'a [InputKey], receiving_keys: &'a HashSet<InputKey>, epoch: EpochId) -> BoxFuture<'a, ()> {
         self.fallback.object_cache_reader.notify_read_input_objects(input_and_receiving_keys, receiving_keys,epoch)
     }
 }
