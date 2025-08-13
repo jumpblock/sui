@@ -789,7 +789,7 @@ impl SuiNode {
         let (end_of_epoch_channel, end_of_epoch_receiver) =
             broadcast::channel(config.end_of_epoch_broadcast_channel_capacity);
 
-        let transaction_orchestrator = if is_full_node && run_with_range.is_none() {
+        let transaction_orchestrator = if is_full_node {
             Some(Arc::new(TransactionOrchestrator::new_with_auth_aggregator(
                 auth_agg.load_full(),
                 state.clone(),
