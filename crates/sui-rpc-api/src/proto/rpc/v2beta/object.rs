@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use move_core_types::annotated_value::MoveStructLayout;
 use super::{Bcs, Object};
 use crate::proto::TryFromProtoError;
 use sui_rpc::field::FieldMaskTree;
@@ -34,6 +35,7 @@ impl Object {
         &MessageField::new("previous_transaction");
     pub const STORAGE_REBATE_FIELD: &'static MessageField = &MessageField::new("storage_rebate");
     pub const JSON_FIELD: &'static MessageField = &MessageField::new("json");
+    pub const LAYOUT_FIELD: &'static MessageField = &MessageField::new("layout");
 }
 
 impl MessageFields for Object {
@@ -52,6 +54,7 @@ impl MessageFields for Object {
         Self::PREVIOUS_TRANSACTION_FIELD,
         Self::STORAGE_REBATE_FIELD,
         Self::JSON_FIELD,
+        Self::LAYOUT_FIELD,
     ];
 }
 
@@ -80,6 +83,7 @@ impl Merge<&Object> for Object {
             previous_transaction,
             storage_rebate,
             json,
+            layout,
         } = source;
 
         if mask.contains(Self::BCS_FIELD.name) {
@@ -137,6 +141,9 @@ impl Merge<&Object> for Object {
         if mask.contains(Self::JSON_FIELD.name) {
             self.json = json.clone();
         }
+        if mask.contains(Self::LAYOUT_FIELD.name) {
+            self.layout = layout.clone();
+        }
     }
 }
 
@@ -179,6 +186,13 @@ impl Merge<sui_sdk_types::Object> for Object {
             sui_sdk_types::ObjectData::Package(move_package) => {
                 self.merge(move_package, mask);
             }
+        }
+    }
+}
+impl MessageMerge<MoveStructLayout> for Object {
+    fn merge(&mut self, source: MoveStructLayout, mask: &crate::field_mask::FieldMaskTree) {
+        if mask.contains(Self::LAYOUT_FIELD.name) {
+            self.layout=serde_json::to_string(&source).ok();
         }
     }
 }
