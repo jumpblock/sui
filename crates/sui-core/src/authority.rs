@@ -247,7 +247,7 @@ pub mod transaction_deferral;
 pub mod transaction_reject_reason_cache;
 mod weighted_moving_average;
 
-pub(crate) mod authority_store;
+pub mod authority_store;
 pub mod backpressure;
 
 /// Prometheus metrics which can be displayed in Grafana, queried and alerted on
