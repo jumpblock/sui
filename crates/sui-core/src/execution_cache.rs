@@ -47,6 +47,7 @@ pub(crate) mod cache_types;
 pub mod metrics;
 mod object_locks;
 pub mod writeback_cache;
+pub(crate) mod override_cache;
 
 pub use writeback_cache::WritebackCache;
 

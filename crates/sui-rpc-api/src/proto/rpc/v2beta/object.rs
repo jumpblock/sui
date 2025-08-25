@@ -189,8 +189,8 @@ impl Merge<sui_sdk_types::Object> for Object {
         }
     }
 }
-impl MessageMerge<MoveStructLayout> for Object {
-    fn merge(&mut self, source: MoveStructLayout, mask: &crate::field_mask::FieldMaskTree) {
+impl Merge<MoveStructLayout> for Object {
+    fn merge(&mut self, source: MoveStructLayout, mask: &FieldMaskTree) {
         if mask.contains(Self::LAYOUT_FIELD.name) {
             self.layout=serde_json::to_string(&source).ok();
         }
