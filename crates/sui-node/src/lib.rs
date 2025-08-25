@@ -2319,9 +2319,8 @@ async fn build_http_servers(
 
     router = router.merge(json_rpc_router);
 
-    let (subscription_service_checkpoint_sender, subscription_service_handle) =
-        SubscriptionService::build(prometheus_registry);
-    let rpc_router = {
+
+    let (rpc_router,subscription_service_checkpoint_sender) = {
         let mut rpc_service =
             sui_rpc_api::RpcService::new(Arc::new(RestReadStore::new(state.clone(), store)));
         rpc_service.with_server_version(server_version);
@@ -2330,6 +2329,7 @@ async fn build_http_servers(
             rpc_service.with_config(config);
         }
 
+        let (subscription_service_checkpoint_sender, subscription_service_handle) = SubscriptionService::build(rpc_service.clone(),prometheus_registry);
         rpc_service.with_metrics(RpcMetrics::new(prometheus_registry));
         rpc_service.with_subscription_service(subscription_service_handle);
 
@@ -2337,7 +2337,7 @@ async fn build_http_servers(
             rpc_service.with_executor(transaction_orchestrator.clone())
         }
 
-        rpc_service.into_router().await
+        (rpc_service.into_router().await,subscription_service_checkpoint_sender)
     };
 
     let layers = ServiceBuilder::new()
