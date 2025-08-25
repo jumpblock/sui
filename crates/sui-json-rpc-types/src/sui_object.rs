@@ -17,10 +17,9 @@ use move_core_types::language_storage::StructTag;
 use schemars::JsonSchema;
 use serde::Deserialize;
 use serde::Serialize;
-use serde_json::Value;
+use serde_json::{json, Value};
 use serde_with::serde_as;
 use serde_with::DisplayFromStr;
-
 use sui_protocol_config::ProtocolConfig;
 use sui_types::base_types::{
     ObjectDigest, ObjectID, ObjectInfo, ObjectRef, ObjectType, SequenceNumber, SuiAddress,
@@ -183,6 +182,10 @@ pub struct SuiObjectData {
     #[serde_as(as = "Option<DisplayFromStr>")]
     #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
     pub type_: Option<ObjectType>,
+    #[schemars(with = "Option<String>")]
+    #[serde_as(as = "Option<DisplayFromStr>")]
+    #[serde(rename = "layout_", skip_serializing_if = "Option::is_none")]
+    pub layout_: Option<String>,
     // Default to be None because otherwise it will be repeated for the getOwnedObjects endpoint
     /// The owner of this object. Default to be None unless SuiObjectDataOptions.showOwner is set to true
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -328,6 +331,7 @@ impl TryFrom<&SuiMoveStruct> for GasCoin {
 pub struct SuiObjectDataOptions {
     /// Whether to show the type of the object. Default to be False
     pub show_type: bool,
+    pub show_layout: bool,
     /// Whether to show the owner of the object. Default to be False
     pub show_owner: bool,
     /// Whether to show the previous transaction digest of the object. Default to be False
@@ -353,6 +357,7 @@ impl SuiObjectDataOptions {
         Self {
             show_bcs: true,
             show_type: true,
+            show_layout:true,
             show_owner: true,
             show_previous_transaction: true,
             show_display: false,
@@ -366,6 +371,7 @@ impl SuiObjectDataOptions {
         Self {
             show_bcs: false,
             show_type: true,
+            show_layout:true,
             show_owner: true,
             show_previous_transaction: true,
             show_display: false,
@@ -386,6 +392,10 @@ impl SuiObjectDataOptions {
 
     pub fn with_type(mut self) -> Self {
         self.show_type = true;
+        self
+    }
+    pub fn with_layout(mut self) -> Self {
+        self.show_layout = true;
         self
     }
 
@@ -452,6 +462,7 @@ impl TryFrom<(ObjectInfo, SuiObjectDataOptions)> for SuiObjectResponse {
             version: object_info.version,
             digest: object_info.digest,
             type_: show_type.then_some(object_info.type_),
+            layout_:None,
             owner: show_owner.then_some(object_info.owner),
             previous_transaction: show_previous_transaction
                 .then_some(object_info.previous_transaction),
@@ -483,6 +494,7 @@ impl
     ) -> Result<Self, Self::Error> {
         let SuiObjectDataOptions {
             show_type,
+            show_layout,
             show_owner,
             show_previous_transaction,
             show_content,
@@ -519,7 +531,7 @@ impl
         let content: Option<SuiParsedData> = if show_content {
             let data = match o.data {
                 Data::Move(m) => {
-                    let layout = layout.ok_or_else(|| {
+                    let layout = layout.clone().ok_or_else(|| {
                         anyhow!("Layout is required to convert Move object to json")
                     })?;
                     SuiParsedData::try_from_object(m, layout)?
@@ -530,12 +542,18 @@ impl
         } else {
             None
         };
+        let layout_=if show_layout{
+            Some(serde_json::to_string(&layout)?)
+        }else{
+            None
+        };
 
         Ok(SuiObjectData {
             object_id,
             version,
             digest,
             type_,
+            layout_,
             owner: if show_owner { Some(o.owner) } else { None },
             storage_rebate: if show_storage_rebate {
                 Some(o.storage_rebate)
