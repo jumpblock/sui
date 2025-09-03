@@ -143,11 +143,13 @@ pub fn simulate_transaction(
         let owner=p.owner.ok_or_else(|| FieldViolation::new("owner").with_reason(ErrorReason::FieldMissing)).map_err(RpcError::from)?
             .address.ok_or_else(|| FieldViolation::new("address").with_reason(ErrorReason::FieldMissing)).map_err(RpcError::from)?;
         let amount=p.balance.ok_or_else(|| FieldViolation::new("balance").with_reason(ErrorReason::FieldMissing)).map_err(RpcError::from)?;
-        let obj=Object::with_id_owner_gas_for_testing(
+        let ty=p.object_type.ok_or_else(|| FieldViolation::new("object_type").with_reason(ErrorReason::FieldMissing)).map_err(RpcError::from)?;
+        let obj=Object::with_id_owner_coin_for_testing(
+            &ty,
             ObjectID::from_str(&object_id).unwrap(),
             SuiAddress::from_str(&owner).map_err(RpcError::from)?,
             amount,
-        );
+        ).unwrap();
         Ok((obj, amount))
     }).collect::<Result<Vec<_>>>()?;
 
