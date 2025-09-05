@@ -365,6 +365,12 @@ impl AuthorityPerpetualTables {
             MetricConf::new("perpetual_readonly"),
         )
     }
+    pub fn open_readonly_as_rw(parent_path: &Path) -> AuthorityPerpetualTables {
+        Self::get_rw_handle_readonly_inner(
+            Self::path(parent_path),
+            MetricConf::new("perpetual_readonly_as_rw"),
+        )
+    }
 
     // This is used by indexer to find the correct version of dynamic field child object.
     // We do not store the version of the child object, but because of lamport timestamp,

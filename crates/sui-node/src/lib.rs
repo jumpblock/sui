@@ -802,7 +802,7 @@ impl SuiNode {
         let (end_of_epoch_channel, end_of_epoch_receiver) =
             broadcast::channel(config.end_of_epoch_broadcast_channel_capacity);
 
-        let transaction_orchestrator = if is_full_node && run_with_range.is_none() {
+        let transaction_orchestrator = if is_full_node{
             Some(Arc::new(TransactionOrchestrator::new_with_auth_aggregator(
                 auth_agg.load_full(),
                 state.clone(),
@@ -1819,9 +1819,9 @@ impl SuiNode {
 
             if stop_condition == StopReason::RunWithRangeCondition {
                 SuiNode::shutdown(&self).await;
-                self.shutdown_channel_tx
-                    .send(run_with_range)
-                    .expect("RunWithRangeCondition met but failed to send shutdown message");
+                // self.shutdown_channel_tx
+                //     .send(run_with_range)
+                //     .expect("RunWithRangeCondition met but failed to send shutdown message");
                 return Ok(());
             }
 
@@ -2549,9 +2549,8 @@ async fn build_http_servers(
 
     router = router.merge(json_rpc_router);
 
-    let (subscription_service_checkpoint_sender, subscription_service_handle) =
-        SubscriptionService::build(prometheus_registry);
-    let rpc_router = {
+
+    let (rpc_router,subscription_service_checkpoint_sender) = {
         let mut rpc_service =
             sui_rpc_api::RpcService::new(Arc::new(RestReadStore::new(state.clone(), store)));
         rpc_service.with_server_version(server_version);
@@ -2560,6 +2559,7 @@ async fn build_http_servers(
             rpc_service.with_config(config);
         }
 
+        let (subscription_service_checkpoint_sender, subscription_service_handle) = SubscriptionService::build(rpc_service.clone(),prometheus_registry);
         rpc_service.with_metrics(RpcMetrics::new(prometheus_registry));
         rpc_service.with_subscription_service(subscription_service_handle);
 
@@ -2567,7 +2567,7 @@ async fn build_http_servers(
             rpc_service.with_executor(transaction_orchestrator.clone())
         }
 
-        rpc_service.into_router().await
+        (rpc_service.into_router().await,subscription_service_checkpoint_sender)
     };
 
     let layers = ServiceBuilder::new()

@@ -1010,7 +1010,8 @@ impl DBMetrics {
     }
     pub fn get() -> &'static Arc<DBMetrics> {
         ONCE.get().unwrap_or_else(|| {
-            DBMetrics::init(RegistryService::new(prometheus::default_registry().clone()))
+            //use new Registry every time to avoid concurrent registry error!!
+            DBMetrics::init(RegistryService::new(Registry::new()))
         })
     }
 }

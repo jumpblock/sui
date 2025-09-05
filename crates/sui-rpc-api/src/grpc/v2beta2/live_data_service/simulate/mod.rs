@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::str::FromStr;
 use crate::reader::StateReader;
 use crate::ErrorReason;
 use crate::Result;
@@ -25,6 +26,7 @@ use sui_types::base_types::ObjectID;
 use sui_types::base_types::ObjectRef;
 use sui_types::base_types::SuiAddress;
 use sui_types::effects::TransactionEffectsAPI;
+use sui_types::object::Object;
 use sui_types::transaction::TransactionDataAPI;
 use sui_types::transaction_executor::SimulateTransactionResult;
 use sui_types::transaction_executor::TransactionChecks;
@@ -101,7 +103,7 @@ pub fn simulate_transaction(
     if request.do_gas_selection() && checks.enabled() {
         let budget = {
             let simulation_result = executor
-                .simulate_transaction(transaction.clone(), TransactionChecks::Enabled)
+                .simulate_transaction(transaction.clone(), TransactionChecks::Enabled,vec![])
                 .map_err(anyhow::Error::from)?;
 
             let estimate = estimate_gas_budget_from_gas_cost(
@@ -136,6 +138,21 @@ pub fn simulate_transaction(
         }
     }
 
+    let borrowed_coins=request.borrowed_coins.into_iter().map(|p|{
+        let object_id=p.object_id.ok_or_else(|| FieldViolation::new("object_id").with_reason(ErrorReason::FieldMissing)).map_err(RpcError::from)?;
+        let owner=p.owner.ok_or_else(|| FieldViolation::new("owner").with_reason(ErrorReason::FieldMissing)).map_err(RpcError::from)?
+            .address.ok_or_else(|| FieldViolation::new("address").with_reason(ErrorReason::FieldMissing)).map_err(RpcError::from)?;
+        let amount=p.balance.ok_or_else(|| FieldViolation::new("balance").with_reason(ErrorReason::FieldMissing)).map_err(RpcError::from)?;
+        let ty=p.object_type.ok_or_else(|| FieldViolation::new("object_type").with_reason(ErrorReason::FieldMissing)).map_err(RpcError::from)?;
+        let obj=Object::with_id_owner_coin_for_testing(
+            &ty,
+            ObjectID::from_str(&object_id).unwrap(),
+            SuiAddress::from_str(&owner).map_err(RpcError::from)?,
+            amount,
+        ).unwrap();
+        Ok((obj, amount))
+    }).collect::<Result<Vec<_>>>()?;
+
     let SimulateTransactionResult {
         input_objects,
         output_objects,
@@ -144,7 +161,7 @@ pub fn simulate_transaction(
         execution_result,
         mock_gas_id: _,
     } = executor
-        .simulate_transaction(transaction.clone(), checks)
+        .simulate_transaction(transaction.clone(), checks,borrowed_coins)
         .map_err(anyhow::Error::from)?;
 
     let transaction = if let Some(submask) = read_mask.subtree("transaction") {

@@ -195,6 +195,8 @@ use crate::validator_tx_finalizer::ValidatorTxFinalizer;
 use sui_types::committee::CommitteeTrait;
 use sui_types::deny_list_v2::check_coin_deny_list_v2_during_signing;
 use sui_types::execution_config_utils::to_binary_config;
+use crate::cache_update_handler::CacheUpdateHandler;
+use crate::execution_cache::override_cache::OverrideCache;
 
 #[cfg(test)]
 #[path = "unit_tests/authority_tests.rs"]
@@ -250,7 +252,7 @@ pub mod transaction_deferral;
 pub mod transaction_reject_reason_cache;
 mod weighted_moving_average;
 
-pub(crate) mod authority_store;
+pub mod authority_store;
 pub mod backpressure;
 
 /// Prometheus metrics which can be displayed in Grafana, queried and alerted on
@@ -901,7 +903,7 @@ pub struct ForkRecoveryState {
     /// Transaction digest to effects digest overrides
     transaction_overrides:
         parking_lot::RwLock<HashMap<TransactionDigest, TransactionEffectsDigest>>,
-    /// Checkpoint sequence to checkpoint digest overrides  
+    /// Checkpoint sequence to checkpoint digest overrides
     checkpoint_overrides: parking_lot::RwLock<HashMap<CheckpointSequenceNumber, CheckpointDigest>>,
 }
 
@@ -1023,6 +1025,8 @@ pub struct AuthorityState {
 
     /// Fork recovery state for handling equivocation after forks
     fork_recovery_state: Option<ForkRecoveryState>,
+
+    cache_update_handler: CacheUpdateHandler,
 }
 
 /// The authority state encapsulates all state, drives execution, and ensures safety.
@@ -1926,13 +1930,29 @@ impl AuthorityState {
         fail_point!("crash");
 
         self.get_cache_writer()
-            .write_transaction_outputs(epoch_store.epoch(), transaction_outputs);
+            .write_transaction_outputs(epoch_store.epoch(), transaction_outputs.clone());
 
         if certificate.transaction_data().is_end_of_epoch_tx() {
             // At the end of epoch, since system packages may have been upgraded, force
             // reload them in the cache.
             self.get_object_cache_reader()
                 .force_reload_system_packages(&BuiltInFramework::all_package_ids());
+        }
+
+        // if system tx, skip
+        if !certificate.transaction_data().is_system_tx() {
+            let changed_objects: Vec<_> = transaction_outputs
+                .written
+                .iter()
+                .map(|(id, obj)| (*id, obj.clone()))
+                .collect();
+            //TODO:select pool related object id??
+
+            // if no changed objects, skip
+            if !changed_objects.is_empty() {
+                self.cache_update_handler
+                    .notify_written(changed_objects);
+            }
         }
 
         match self.execution_scheduler.as_ref() {
@@ -2449,6 +2469,7 @@ impl AuthorityState {
         &self,
         mut transaction: TransactionData,
         checks: TransactionChecks,
+        borrowed_coins:Vec<(Object, u64)>
     ) -> SuiResult<SimulateTransactionResult> {
         if transaction.kind().is_system_tx() {
             return Err(SuiError::UnsupportedFeatureError {
@@ -2485,6 +2506,30 @@ impl AuthorityState {
             &receiving_object_refs,
             epoch_store.epoch(),
         )?;
+
+        let mut override_objects=Vec::with_capacity(borrowed_coins.len());
+        if borrowed_coins.len() > 0 {
+            borrowed_coins.iter().for_each(|(borrowed_coin, _borrowed_amount)|{
+                let object_read_result = ObjectReadResult {
+                    input_object_kind: InputObjectKind::ImmOrOwnedMoveObject(borrowed_coin.compute_object_reference()),
+                    object: ObjectReadResultKind::Object(borrowed_coin.clone()),
+                };
+                input_objects.push(object_read_result.clone());
+                override_objects.push(object_read_result);
+            });
+        }
+
+        let store=OverrideCache::new(self.execution_cache_trait_pointers.clone(), override_objects);
+        if borrowed_coins.len() > 0 {
+            // update input objects again with override cache
+            for object_read_result in input_objects.iter_mut() {
+                if let ObjectReadResultKind::Object(object) = &object_read_result.object {
+                    if let Some(object) = (&store as &dyn ObjectCacheRead).get_object(&object.id()) {
+                        object_read_result.object = ObjectReadResultKind::Object(object);
+                    }
+                }
+            }
+        }
 
         // mock a gas object if one was not provided
         let mock_gas_id = if transaction.gas().is_empty() {
@@ -2555,7 +2600,7 @@ impl AuthorityState {
             None => ExecutionOrEarlyError::Ok(()),
         };
         let (inner_temp_store, _, effects, execution_result) = executor.dev_inspect_transaction(
-            self.get_backing_store().as_ref(),
+            &store,
             protocol_config,
             self.metrics.limits_metrics.clone(),
             false, // expensive_checks
@@ -3529,6 +3574,7 @@ impl AuthorityState {
             congestion_tracker: Arc::new(CongestionTracker::new()),
             traffic_controller,
             fork_recovery_state,
+            cache_update_handler: CacheUpdateHandler::new(),
         });
 
         let state_clone = Arc::downgrade(&state);

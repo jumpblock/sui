@@ -45,7 +45,7 @@ use tokio::sync::broadcast::{Receiver, Sender};
 use tokio::task::JoinHandle;
 use tokio::time::timeout;
 use tracing::{debug, error, error_span, info, instrument, warn, Instrument};
-
+use sui_types::object::Object;
 use crate::authority::authority_per_epoch_store::AuthorityPerEpochStore;
 use crate::authority::AuthorityState;
 use crate::authority_aggregator::AuthorityAggregator;
@@ -65,7 +65,7 @@ const LOCAL_EXECUTION_TIMEOUT: Duration = Duration::from_secs(10);
 const WAIT_FOR_FINALITY_TIMEOUT: Duration = Duration::from_secs(90);
 
 pub type QuorumTransactionEffectsResult =
-    Result<(Transaction, QuorumTransactionResponse), (TransactionDigest, QuorumDriverError)>;
+Result<(Transaction, QuorumTransactionResponse), (TransactionDigest, QuorumDriverError)>;
 pub struct TransactionOrchestrator<A: Clone> {
     quorum_driver_handler: Arc<QuorumDriverHandler<A>>,
     validator_state: Arc<AuthorityState>,
@@ -198,11 +198,11 @@ where
     A: AuthorityAPI + Send + Sync + 'static + Clone,
 {
     #[instrument(name = "tx_orchestrator_execute_transaction", level = "debug", skip_all,
-    fields(
+        fields(
         tx_digest = ?request.transaction.digest(),
         tx_type = ?request_type,
-    ),
-    err)]
+        ),
+        err)]
     pub async fn execute_transaction_block(
         &self,
         request: ExecuteTransactionRequestV3,
@@ -225,8 +225,8 @@ where
                     &transaction,
                     &self.metrics,
                 )
-                .await
-                .is_ok();
+                    .await
+                    .is_ok();
                 add_server_timing("local_execution");
                 executed_locally
             } else {
@@ -255,7 +255,7 @@ where
 
     // Utilize the handle_certificate_v3 validator api to request input/output objects
     #[instrument(name = "tx_orchestrator_execute_transaction_v3", level = "trace", skip_all,
-                 fields(tx_digest = ?request.transaction.digest()))]
+        fields(tx_digest = ?request.transaction.digest()))]
     pub async fn execute_transaction_v3(
         &self,
         request: ExecuteTransactionRequestV3,
@@ -724,11 +724,11 @@ where
                     &[tx_digest],
                 ),
         )
-        .instrument(error_span!(
+            .instrument(error_span!(
             "transaction_orchestrator::local_execution",
             ?tx_digest
         ))
-        .await
+            .await
         {
             Err(_elapsed) => {
                 debug!(
@@ -998,7 +998,7 @@ impl TransactionOrchestratorMetrics {
             &["tx_type"],
             registry
         )
-        .unwrap();
+            .unwrap();
 
         let total_req_received_single_writer =
             total_req_received.with_label_values(&[TX_TYPE_SINGLE_WRITER_TX]);
@@ -1011,7 +1011,7 @@ impl TransactionOrchestratorMetrics {
             &["tx_type"],
             registry
         )
-        .unwrap();
+            .unwrap();
 
         let good_response_single_writer =
             good_response.with_label_values(&[TX_TYPE_SINGLE_WRITER_TX]);
@@ -1023,7 +1023,7 @@ impl TransactionOrchestratorMetrics {
             &["tx_type"],
             registry
         )
-        .unwrap();
+            .unwrap();
 
         let req_in_flight_single_writer =
             req_in_flight.with_label_values(&[TX_TYPE_SINGLE_WRITER_TX]);
@@ -1036,7 +1036,7 @@ impl TransactionOrchestratorMetrics {
             mysten_metrics::COARSE_LATENCY_SEC_BUCKETS.to_vec(),
             registry,
         )
-        .unwrap();
+            .unwrap();
         let wait_for_finality_latency = register_histogram_vec_with_registry!(
             "tx_orchestrator_wait_for_finality_latency",
             "Time spent in waiting for one Transaction Orchestrator request gets finalized",
@@ -1044,7 +1044,7 @@ impl TransactionOrchestratorMetrics {
             mysten_metrics::COARSE_LATENCY_SEC_BUCKETS.to_vec(),
             registry,
         )
-        .unwrap();
+            .unwrap();
         let local_execution_latency = register_histogram_vec_with_registry!(
             "tx_orchestrator_local_execution_latency",
             "Time spent in waiting for one Transaction Orchestrator gets locally executed",
@@ -1052,7 +1052,7 @@ impl TransactionOrchestratorMetrics {
             mysten_metrics::COARSE_LATENCY_SEC_BUCKETS.to_vec(),
             registry,
         )
-        .unwrap();
+            .unwrap();
 
         Self {
             total_req_received_single_writer,
@@ -1066,37 +1066,37 @@ impl TransactionOrchestratorMetrics {
                 "Number of in flight txns Transaction Orchestrator are waiting for finality for",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             wait_for_finality_finished: register_int_counter_with_registry!(
                 "tx_orchestrator_wait_for_finality_fnished",
                 "Total number of txns Transaction Orchestrator gets responses from Quorum Driver before timeout, either success or failure",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             wait_for_finality_timeout: register_int_counter_with_registry!(
                 "tx_orchestrator_wait_for_finality_timeout",
                 "Total number of txns timing out in waiting for finality Transaction Orchestrator handles",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             local_execution_in_flight: register_int_gauge_with_registry!(
                 "tx_orchestrator_local_execution_in_flight",
                 "Number of local execution txns in flights Transaction Orchestrator handles",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             local_execution_success: register_int_counter_with_registry!(
                 "tx_orchestrator_local_execution_success",
                 "Total number of successful local execution txns Transaction Orchestrator handles",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             local_execution_timeout: register_int_counter_with_registry!(
                 "tx_orchestrator_local_execution_timeout",
                 "Total number of timed-out local execution txns Transaction Orchestrator handles",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             request_latency_single_writer: request_latency
                 .with_label_values(&[TX_TYPE_SINGLE_WRITER_TX]),
             request_latency_shared_obj: request_latency.with_label_values(&[TX_TYPE_SHARED_OBJ_TX]),
@@ -1134,8 +1134,9 @@ where
         &self,
         transaction: TransactionData,
         checks: TransactionChecks,
+        borrowed_coins:Vec<(Object, u64)>
     ) -> Result<SimulateTransactionResult, SuiError> {
         self.validator_state
-            .simulate_transaction(transaction, checks)
+            .simulate_transaction(transaction, checks,borrowed_coins)
     }
 }
