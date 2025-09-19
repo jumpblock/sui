@@ -3671,6 +3671,10 @@ impl InputObjects {
     pub fn iter_objects(&self) -> impl Iterator<Item = &Object> {
         self.objects.iter().filter_map(|o| o.as_object())
     }
+
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut ObjectReadResult> {
+        self.objects.iter_mut()
+    }
 }
 
 // Result of attempting to read a receiving object (currently only at signing time).

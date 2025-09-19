@@ -47,6 +47,7 @@ pub(crate) mod cache_types;
 pub mod metrics;
 mod object_locks;
 pub mod writeback_cache;
+pub(crate) mod override_cache;
 
 pub use writeback_cache::WritebackCache;
 
@@ -607,6 +608,10 @@ pub trait ExecutionCacheWrite: Send + Sync {
     /// transaction outputs.
     #[cfg(test)]
     fn write_object_entry_for_test(&self, object: Object);
+
+    fn reload_objects(&self, objects: Vec<(ObjectID, Object)>);
+
+    fn update_underlying(&self, clear_cache: bool)->SuiResult;
 }
 
 pub trait CheckpointCache: Send + Sync {

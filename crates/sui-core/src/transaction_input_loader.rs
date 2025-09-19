@@ -100,26 +100,33 @@ impl TransactionInputLoader {
             }
         }
 
+        // let objects = self
+        //     .cache
+        //     .multi_get_objects_with_more_accurate_error_return(&object_refs)?;
         let objects = self
             .cache
-            .multi_get_objects_with_more_accurate_error_return(&object_refs)?;
+            .multi_get_objects_by_key(&object_refs.iter().map(ObjectKey::from).collect::<Vec<_>>());
         assert_eq!(objects.len(), object_refs.len());
         for (index, object) in fetch_indices.into_iter().zip(objects.into_iter()) {
-            input_results[index] = Some(ObjectReadResult {
-                input_object_kind: input_object_kinds[index],
-                object: ObjectReadResultKind::Object(object),
-            });
+            // ignore mock objects
+            if let Some(object) = object {
+                input_results[index] = Some(ObjectReadResult {
+                    input_object_kind: input_object_kinds[index],
+                    object: ObjectReadResultKind::Object(object),
+                });
+            }
         }
 
         let receiving_results =
             self.read_receiving_objects_for_signing(receiving_objects, epoch_id)?;
 
         Ok((
-            input_results
-                .into_iter()
-                .map(Option::unwrap)
-                .collect::<Vec<_>>()
-                .into(),
+            // input_results
+            //     .into_iter()
+            //     .map(Option::unwrap)
+            //     .collect::<Vec<_>>()
+            //     .into(),
+            input_results.into_iter().flatten().collect::<Vec<_>>().into(),
             receiving_results,
         ))
     }

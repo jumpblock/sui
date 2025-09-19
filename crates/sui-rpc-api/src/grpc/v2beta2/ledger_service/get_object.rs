@@ -17,6 +17,7 @@ use sui_rpc::proto::sui::rpc::v2beta2::GetObjectResponse;
 use sui_rpc::proto::sui::rpc::v2beta2::GetObjectResult;
 use sui_rpc::proto::sui::rpc::v2beta2::Object;
 use sui_sdk_types::Address;
+use sui_types::object::ObjectRead;
 
 pub const READ_MASK_DEFAULT: &str = "object_id,version,digest";
 
@@ -107,18 +108,26 @@ fn get_object_impl(
     version: Option<u64>,
     read_mask: &FieldMaskTree,
 ) -> Result<Object, RpcError> {
-    let object = if let Some(version) = version {
-        service
+    let (object,layout) = if let Some(version) = version {
+        let object=service
             .reader
             .inner()
             .get_object_by_key(&object_id.into(), version.into())
-            .ok_or_else(|| ObjectNotFoundError::new_with_version(object_id, version))?
+            .ok_or_else(|| ObjectNotFoundError::new_with_version(object_id, version))?;
+        (object,None)
     } else {
-        service
-            .reader
-            .inner()
-            .get_object(&object_id.into())
-            .ok_or_else(|| ObjectNotFoundError::new(object_id))?
+        let(object,layout)=service.reader.inner()
+            .get_object_read(&object_id.into())
+            .map(|obj|{
+                match obj {
+                    ObjectRead::NotExists(_)|ObjectRead::Deleted(_) => None,
+                    ObjectRead::Exists(_a,b,c) => Some((b,c))
+                }
+            })
+            .ok_or_else(|| ObjectNotFoundError::new(object_id))
+            .transpose()
+            .ok_or_else(|| ObjectNotFoundError::new(object_id))??;
+        (object,layout)
     };
 
     let mut message = Object::default();
@@ -128,6 +137,10 @@ fn get_object_impl(
     }
 
     message.merge(object, read_mask);
-
+    if let Some(layout) = layout {
+        if read_mask.contains(Object::LAYOUT_FIELD.name){
+            message.layout=serde_json::to_string(&layout).ok();
+        }
+    }
     Ok(message)
 }

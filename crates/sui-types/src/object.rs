@@ -24,7 +24,7 @@ use crate::crypto::{default_hash, deterministic_random_account_key};
 use crate::error::{ExecutionError, ExecutionErrorKind, UserInputError, UserInputResult};
 use crate::error::{SuiError, SuiResult};
 use crate::gas_coin::GAS;
-use crate::is_system_package;
+use crate::{is_system_package, parse_sui_struct_tag};
 use crate::layout_resolver::LayoutResolver;
 use crate::move_package::MovePackage;
 use crate::{
@@ -1020,6 +1020,22 @@ impl Object {
             storage_rebate: 0,
         }
         .into()
+    }
+    pub fn with_id_owner_coin_for_testing(type_:&str,id: ObjectID, owner: SuiAddress, gas: u64) -> anyhow::Result<Self> {
+        let struct_tag = parse_sui_struct_tag(type_)?;
+        let data = Data::Move(MoveObject {
+            type_: struct_tag.into(),
+            has_public_transfer: true,
+            version: OBJECT_START_VERSION,
+            contents: GasCoin::new(id, gas).to_bcs_bytes(),
+        });
+        Ok(ObjectInner {
+            owner: Owner::AddressOwner(owner),
+            data,
+            previous_transaction: TransactionDigest::genesis_marker(),
+            storage_rebate: 0,
+        }
+            .into())
     }
 
     pub fn treasury_cap_for_testing(struct_tag: StructTag, treasury_cap: TreasuryCap) -> Self {

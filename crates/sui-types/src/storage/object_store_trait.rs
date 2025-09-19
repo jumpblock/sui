@@ -3,7 +3,7 @@
 
 use super::ObjectKey;
 use crate::base_types::{ObjectID, ObjectRef, VersionNumber};
-use crate::object::Object;
+use crate::object::{Object, ObjectRead};
 use crate::storage::WriteKind;
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -25,6 +25,9 @@ pub trait ObjectStore {
             .iter()
             .map(|k| self.get_object_by_key(&k.0, k.1))
             .collect()
+    }
+    fn get_object_read(&self, _object_id: &ObjectID) -> Option<ObjectRead> {
+        None
     }
 }
 
@@ -79,6 +82,9 @@ impl<T: ObjectStore + ?Sized> ObjectStore for Arc<T> {
 
     fn multi_get_objects_by_key(&self, object_keys: &[ObjectKey]) -> Vec<Option<Object>> {
         (**self).multi_get_objects_by_key(object_keys)
+    }
+    fn get_object_read(&self, object_id: &ObjectID) -> Option<ObjectRead> {
+        (**self).get_object_read(object_id)
     }
 }
 
