@@ -15,6 +15,7 @@ pub struct ExecutionCacheMetrics {
     pub(crate) cache_negative_hits: IntCounterVec,
     pub(crate) cache_misses: IntCounterVec,
     pub(crate) cache_writes: IntCounterVec,
+    pub(crate) cache_count: IntGauge,
     pub(crate) expired_tickets: IntCounter,
     pub(crate) backpressure_status: IntGauge,
     pub(crate) backpressure_toggles: IntCounter,
@@ -68,6 +69,12 @@ impl ExecutionCacheMetrics {
                 registry,
             )
             .unwrap(),
+            cache_count: register_int_gauge_with_registry!(
+                "cache_count",
+                "Get current cached items count",
+                registry,
+            )
+                .unwrap(),
 
             expired_tickets: register_int_counter_with_registry!(
                 "execution_cache_expired_tickets",

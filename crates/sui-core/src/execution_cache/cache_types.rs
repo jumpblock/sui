@@ -329,6 +329,10 @@ where
     pub fn is_empty(&self) -> bool {
         self.cache.iter().next().is_none()
     }
+
+    pub fn count(&self) -> u64 {
+        self.cache.entry_count()
+    }
 }
 
 #[cfg(test)]

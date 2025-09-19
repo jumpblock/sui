@@ -1262,6 +1262,7 @@ impl WritebackCache {
             .is_ok()
         {
             self.metrics.record_cache_write("object_by_id");
+            self.metrics.cache_count.set(self.object_by_id_cache.count() as i64);
         } else {
             trace!("discarded cache write due to expired ticket");
             self.metrics.record_ticket_expiry();
