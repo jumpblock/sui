@@ -265,23 +265,21 @@ fn core_transaction_to_executed_transaction_proto(
         })
         .transpose()?
         .unwrap_or_default();
-
-    Ok(ExecutedTransaction {
-        digest,
-        transaction,
-        signatures,
-        effects,
-        events,
-        checkpoint: read_mask
-            .contains(ExecutedTransaction::CHECKPOINT_FIELD.name)
-            .then_some(checkpoint),
-        timestamp: read_mask
-            .contains(ExecutedTransaction::TIMESTAMP_FIELD.name)
-            .then(|| timestamp_ms_to_proto(timestamp_ms)),
-        balance_changes: Vec::new(),
-        input_objects,
-        output_objects,
-    })
+    let mut tx=ExecutedTransaction::default();
+    tx.digest = digest;
+    tx.transaction = transaction;
+    tx.signatures = signatures;
+    tx.effects = effects;
+    tx.events = events;
+    tx.checkpoint=read_mask
+        .contains(ExecutedTransaction::CHECKPOINT_FIELD.name)
+        .then_some(checkpoint);
+    tx.timestamp=read_mask
+        .contains(ExecutedTransaction::TIMESTAMP_FIELD.name)
+        .then(|| timestamp_ms_to_proto(timestamp_ms));
+    tx.input_objects = input_objects;
+    tx.output_objects = output_objects;
+    Ok(tx)
 }
 
 fn core_object_to_object_proto(

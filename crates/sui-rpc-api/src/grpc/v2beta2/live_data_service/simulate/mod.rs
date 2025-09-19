@@ -27,7 +27,6 @@ use sui_types::base_types::ObjectID;
 use sui_types::base_types::ObjectRef;
 use sui_types::base_types::SuiAddress;
 use sui_types::effects::TransactionEffectsAPI;
-use sui_types::object::Object;
 use sui_types::transaction::TransactionDataAPI;
 use sui_types::transaction_executor::SimulateTransactionResult;
 use sui_types::transaction_executor::TransactionChecks;
@@ -145,7 +144,7 @@ pub fn simulate_transaction(
             .address.ok_or_else(|| FieldViolation::new("address").with_reason(ErrorReason::FieldMissing)).map_err(RpcError::from)?;
         let amount=p.balance.ok_or_else(|| FieldViolation::new("balance").with_reason(ErrorReason::FieldMissing)).map_err(RpcError::from)?;
         let ty=p.object_type.ok_or_else(|| FieldViolation::new("object_type").with_reason(ErrorReason::FieldMissing)).map_err(RpcError::from)?;
-        let obj=Object::with_id_owner_coin_for_testing(
+        let obj=sui_types::object::Object::with_id_owner_coin_for_testing(
             &ty,
             ObjectID::from_str(&object_id).unwrap(),
             SuiAddress::from_str(&owner).map_err(RpcError::from)?,
