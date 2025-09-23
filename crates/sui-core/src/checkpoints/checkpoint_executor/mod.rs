@@ -21,6 +21,8 @@
 use futures::StreamExt;
 use mysten_common::{debug_fatal, fatal};
 use parking_lot::Mutex;
+use std::thread::sleep;
+use std::time::Duration;
 use std::{sync::Arc, time::Instant};
 use sui_types::crypto::RandomnessRound;
 use sui_types::inner_temporary_store::PackageStoreWithFallback;
@@ -259,6 +261,10 @@ impl CheckpointExecutor {
         .map(|checkpoint| {
             let this = this.clone();
             let pipeline_handle = pipeline_stages.handle(*checkpoint.sequence_number());
+            if let Some(delay)=this.config.execution_delay{
+                sleep(Duration::from_millis(delay));
+            }
+            
             async move {
                 let pipeline_handle = pipeline_handle.await;
                 tokio::spawn(this.execute_checkpoint(checkpoint, pipeline_handle))

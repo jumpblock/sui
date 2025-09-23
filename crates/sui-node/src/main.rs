@@ -41,6 +41,9 @@ struct Args {
 
     #[clap(long, group = "exclusive")]
     run_with_range_checkpoint: Option<CheckpointSequenceNumber>,
+
+    #[clap(long, group = "exclusive")]
+    execution_delay: Option<u64>,
 }
 
 #[cfg(all(not(target_env = "msvc"), feature = "jemalloc"))]
@@ -62,6 +65,7 @@ fn main() {
         "supported_protocol_versions cannot be read from the config file"
     );
     config.supported_protocol_versions = Some(SupportedProtocolVersions::SYSTEM_DEFAULT);
+    config.checkpoint_executor_config.execution_delay = args.execution_delay;
 
     // match run_with_range args
     // this means that we always modify the config used to start the node

@@ -946,6 +946,10 @@ pub struct CheckpointExecutorConfig {
     /// When specified, each executed checkpoint will be saved in a local directory for post processing
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub data_ingestion_dir: Option<PathBuf>,
+
+    /// Number of milliseconds to delay when executing,used in test
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub execution_delay: Option<u64>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -1046,6 +1050,7 @@ impl Default for CheckpointExecutorConfig {
             checkpoint_execution_max_concurrency: default_checkpoint_execution_max_concurrency(),
             local_execution_timeout_sec: default_local_execution_timeout_sec(),
             data_ingestion_dir: None,
+            execution_delay:None
         }
     }
 }
